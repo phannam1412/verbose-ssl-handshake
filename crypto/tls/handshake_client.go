@@ -11,11 +11,13 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/subtle"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"hash"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -164,23 +166,41 @@ func (c *Conn) clientHandshake() (err error) {
 		}()
 	}
 
+	log.Println("Step 1. client --> server: Client hello")
 	if _, err := c.writeRecord(recordTypeHandshake, hello.marshal()); err != nil {
 		return err
 	}
 
+	log.Println("Step 2. client <-- server: Server hello, send TLS supported version and cipher suites")
 	msg, err := c.readHandshake()
 	if err != nil {
 		return err
 	}
 
 	serverHello, ok := msg.(*serverHelloMsg)
+	log.Printf(" - version: %d\n", serverHello.vers)
+	log.Printf(" - supported version: %d\n", serverHello.supportedVersion)
 	if !ok {
 		c.sendAlert(alertUnexpectedMessage)
 		return unexpectedMessageError(serverHello, msg)
 	}
 
+	log.Println("Step 3. Client pick TLS version from Server's hello message")
 	if err := c.pickTLSVersion(serverHello); err != nil {
 		return err
+	}
+
+	if c.vers == tls.VersionTLS10 {
+		log.Println(" - picked TLS version: 1.0")
+	}
+	if c.vers == tls.VersionTLS11 {
+		log.Println(" - picked TLS version: 1.1")
+	}
+	if c.vers == tls.VersionTLS12 {
+		log.Println(" - picked TLS version: 1.2")
+	}
+	if c.vers == tls.VersionTLS13 {
+		log.Println(" - picked TLS version: 1.3")
 	}
 
 	// If we are negotiating a protocol version that's lower than what we
@@ -826,6 +846,7 @@ func (c *Conn) verifyServerCertificate(certificates [][]byte) error {
 	certs := make([]*x509.Certificate, len(certificates))
 	for i, asn1Data := range certificates {
 		cert, err := x509.ParseCertificate(asn1Data)
+		log.Printf(" - common name: %s\n", cert.Subject.CommonName)
 		if err != nil {
 			c.sendAlert(alertBadCertificate)
 			return errors.New("tls: failed to parse certificate from server: " + err.Error())

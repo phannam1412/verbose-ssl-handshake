@@ -9,8 +9,10 @@ import (
 	"crypto"
 	"crypto/hmac"
 	"crypto/rsa"
+	"crypto/tls"
 	"errors"
 	"hash"
+	"log"
 	"sync/atomic"
 	"time"
 )
@@ -55,6 +57,8 @@ func (hs *clientHandshakeStateTLS13) handshake() error {
 		return err
 	}
 
+	log.Printf(" - checked Server's hello message and got cipher suite: %s\n", tls.CipherSuiteName(c.cipherSuite))
+
 	hs.transcript = hs.suite.hash.New()
 	hs.transcript.Write(hs.hello.marshal())
 
@@ -76,21 +80,25 @@ func (hs *clientHandshakeStateTLS13) handshake() error {
 	if err := hs.sendDummyChangeCipherSpec(); err != nil {
 		return err
 	}
+	log.Println("Step 4. Client establish handshake keys")
 	if err := hs.establishHandshakeKeys(); err != nil {
 		return err
 	}
 	if err := hs.readServerParameters(); err != nil {
 		return err
 	}
+	log.Println("Step 5. Client reads and verifies Server's certificate")
 	if err := hs.readServerCertificate(); err != nil {
 		return err
 	}
 	if err := hs.readServerFinished(); err != nil {
 		return err
 	}
+	log.Printf("Step 6. client --> server: Client sends its certificate to server (in case of mTLS)")
 	if err := hs.sendClientCertificate(); err != nil {
 		return err
 	}
+	log.Printf("Step 7. client <-- server: Server finishes")
 	if err := hs.sendClientFinished(); err != nil {
 		return err
 	}
@@ -454,6 +462,7 @@ func (hs *clientHandshakeStateTLS13) readServerCertificate() error {
 		return errors.New("tls: received empty certificates message")
 	}
 	hs.transcript.Write(certMsg.marshal())
+
 
 	c.scts = certMsg.certificate.SignedCertificateTimestamps
 	c.ocspResponse = certMsg.certificate.OCSPStaple
