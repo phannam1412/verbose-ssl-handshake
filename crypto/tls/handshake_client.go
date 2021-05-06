@@ -166,26 +166,43 @@ func (c *Conn) clientHandshake() (err error) {
 		}()
 	}
 
-	log.Println("Step 1. client --> server: Client hello")
+	log.Printf("Step 1. client --> server: Client says hello to %s", hello.serverName)
 	if _, err := c.writeRecord(recordTypeHandshake, hello.marshal()); err != nil {
 		return err
 	}
 
-	log.Println("Step 2. client <-- server: Server hello, send TLS supported version and cipher suites")
+	log.Printf("Step 2. client <-- server: %s says hello to client, send TLS supported version and cipher suites", hello.serverName)
 	msg, err := c.readHandshake()
 	if err != nil {
 		return err
 	}
 
 	serverHello, ok := msg.(*serverHelloMsg)
-	log.Printf(" - version: %d\n", serverHello.vers)
-	log.Printf(" - supported version: %d\n", serverHello.supportedVersion)
+	if serverHello.vers == tls.VersionTLS11 {
+		log.Println(" - TLS version: 1.1")
+	}
+	if serverHello.vers == tls.VersionTLS12 {
+		log.Println(" - TLS version: 1.2")
+	}
+	if serverHello.vers == tls.VersionTLS13 {
+		log.Println(" - TLS version: 1.3")
+	}
+	if serverHello.supportedVersion == tls.VersionTLS11 {
+		log.Println(" - supported TLS version: 1.1")
+	}
+	if serverHello.supportedVersion == tls.VersionTLS12 {
+		log.Println(" - supported TLS version: 1.2")
+	}
+	if serverHello.supportedVersion == tls.VersionTLS13 {
+		log.Println(" - supported TLS version: 1.3")
+	}
+	log.Printf(" - cipher suite: %s", tls.CipherSuiteName(serverHello.cipherSuite))
 	if !ok {
 		c.sendAlert(alertUnexpectedMessage)
 		return unexpectedMessageError(serverHello, msg)
 	}
 
-	log.Println("Step 3. Client pick TLS version from Server's hello message")
+	log.Printf("Step 3. Client picks TLS version from %s's hello message\n", hello.serverName)
 	if err := c.pickTLSVersion(serverHello); err != nil {
 		return err
 	}

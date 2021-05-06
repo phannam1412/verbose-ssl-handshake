@@ -57,7 +57,7 @@ func (hs *clientHandshakeStateTLS13) handshake() error {
 		return err
 	}
 
-	log.Printf(" - checked Server's hello message and got cipher suite: %s\n", tls.CipherSuiteName(c.cipherSuite))
+	log.Printf(" - checked %s's hello message and got cipher suite: %s\n", hs.hello.serverName, tls.CipherSuiteName(c.cipherSuite))
 
 	hs.transcript = hs.suite.hash.New()
 	hs.transcript.Write(hs.hello.marshal())
@@ -87,7 +87,7 @@ func (hs *clientHandshakeStateTLS13) handshake() error {
 	if err := hs.readServerParameters(); err != nil {
 		return err
 	}
-	log.Println("Step 5. Client reads and verifies Server's certificate")
+	log.Printf("Step 5. Client reads and verifies %s's certificate\n", hs.hello.serverName)
 	if err := hs.readServerCertificate(); err != nil {
 		return err
 	}
