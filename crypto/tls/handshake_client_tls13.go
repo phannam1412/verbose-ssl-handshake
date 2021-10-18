@@ -454,6 +454,8 @@ func (hs *clientHandshakeStateTLS13) readServerCertificate() error {
 		return errors.New("tls: received empty certificates message")
 	}
 	hs.transcript.Write(certMsg.marshal())
+	//fmt.Println(">>> server certificate message")
+	//fmt.Printf("%+v\n\n", certMsg)
 
 	c.scts = certMsg.certificate.SignedCertificateTimestamps
 	c.ocspResponse = certMsg.certificate.OCSPStaple

@@ -163,7 +163,24 @@ func (c *Conn) clientHandshake() (err error) {
 			}
 		}()
 	}
+	{
+		fmt.Println(">>> client hello message:")
+		fmt.Printf(`
+Server name: %s
+OCSP stapling: %v
+Ticket supported: %v
+Secure renegotiation supported: %v
+Signed certificate timestamps (SCTS): %v
+Early data: %v
 
+`, hello.serverName,
+hello.ocspStapling,
+hello.ticketSupported,
+hello.secureRenegotiationSupported,
+hello.scts,
+hello.earlyData,
+)
+	}
 	if _, err := c.writeRecord(recordTypeHandshake, hello.marshal()); err != nil {
 		return err
 	}
@@ -177,6 +194,22 @@ func (c *Conn) clientHandshake() (err error) {
 	if !ok {
 		c.sendAlert(alertUnexpectedMessage)
 		return unexpectedMessageError(serverHello, msg)
+	}
+	{
+		fmt.Println(">>> server hello message:")
+		fmt.Printf(`
+OCSP stapling:                  %v
+Ticket supported:               %v
+Secure renegotiation supported: %v
+ALPN protocol: %s
+Selected identity present: %v
+
+`, serverHello.ocspStapling,
+serverHello.ticketSupported,
+serverHello.secureRenegotiationSupported,
+serverHello.alpnProtocol,
+serverHello.selectedIdentityPresent,
+)
 	}
 
 	if err := c.pickTLSVersion(serverHello); err != nil {
@@ -363,6 +396,7 @@ func (c *Conn) pickTLSVersion(serverHello *serverHelloMsg) error {
 	c.in.version = vers
 	c.out.version = vers
 
+	fmt.Printf(">>> client picked TLS version: %s\n", TlsVersionString(vers))
 	return nil
 }
 
@@ -578,6 +612,12 @@ func (hs *clientHandshakeState) doFullHandshake() error {
 	}
 	if ckx != nil {
 		hs.finishedHash.Write(ckx.marshal())
+		fmt.Println(">>> client key exchange message")
+		fmt.Printf(`
+Raw: %s
+Cipher text: %s
+
+`, string(ckx.raw), string(ckx.ciphertext))
 		if _, err := c.writeRecord(recordTypeHandshake, ckx.marshal()); err != nil {
 			return err
 		}
@@ -824,8 +864,27 @@ func (hs *clientHandshakeState) sendFinished(out []byte) error {
 // c.verifiedChains and c.peerCertificates or sending the appropriate alert.
 func (c *Conn) verifyServerCertificate(certificates [][]byte) error {
 	certs := make([]*x509.Certificate, len(certificates))
+	fmt.Println(">>> server certificate message")
 	for i, asn1Data := range certificates {
 		cert, err := x509.ParseCertificate(asn1Data)
+		fmt.Printf(`
+Subject: %s
+Issuer: %s
+Not before: %s
+Not after: %s
+Key usage: %v
+Version: %d
+Serial number: %s
+Signature algorithm: %s
+`, cert.Subject.ToRDNSequence(),
+cert.Issuer.ToRDNSequence(),
+cert.NotBefore.Format(time.RFC822),
+cert.NotAfter.Format(time.RFC822),
+cert.KeyUsage,
+cert.Version,
+cert.SerialNumber.String(),
+cert.SignatureAlgorithm.String(),
+)
 		if err != nil {
 			c.sendAlert(alertBadCertificate)
 			return errors.New("tls: failed to parse certificate from server: " + err.Error())
